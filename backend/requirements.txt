@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+yt-dlp
+librosa
+demucs
+numpy
+scipy
+pydantic

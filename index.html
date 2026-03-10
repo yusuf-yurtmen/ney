@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 Ney Mastery — Hardcore Kapsamlı Öğrenme Platformu</title>
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Amiri:wght@400;700&display=swap"
+        rel="stylesheet">
+    <!-- VexFlow for Music Notation -->
+    <script src="https://unpkg.com/vexflow@4.2.2/releases/vexflow-min.js"></script>
+    <!-- TensorFlow.js for ML-based pitch detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <!-- VexFlow Entegrasyonu (Audio-to-Score için) -->
+    <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+</head>
+
+<body>
+    <!-- Mobile Hamburger -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn">☰</button>
+    <!-- Navigation Sidebar -->
+    <nav class="sidebar">
+        <div class="logo">
+            <span class="logo-icon">🎵</span>
+            <span class="logo-text">Ney Mastery</span>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" data-section="dashboard">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Dashboard</span>
+            </li>
+            <li class="nav-item" data-section="curriculum">
+                <span class="nav-icon">📚</span>
+                <span class="nav-label">Müfredat</span>
+            </li>
+            <li class="nav-item" data-section="fingerchart">
+                <span class="nav-icon">🎶</span>
+                <span class="nav-label">Parmak Şeması</span>
+            </li>
+            <li class="nav-item" data-section="notereading">
+                <span class="nav-icon">📝</span>
+                <span class="nav-label">Nota Okuma</span>
+            </li>
+            <li class="nav-item" data-section="aianalysis">
+                <span class="nav-icon">📹</span>
+                <span class="nav-label">Video Pratik</span>
+            </li>
+            <li class="nav-item" data-section="practicetools">
+                <span class="nav-icon">🛠️</span>
+                <span class="nav-label">Pratik Araçlar</span>
+            </li>
+            <li class="nav-item" data-section="tuner">
+                <span class="nav-icon">🎯</span>
+                <span class="nav-label">Akort & Tuner</span>
+            </li>
+            <li class="nav-item" data-section="mesk">
+                <span class="nav-icon">🎻</span>
+                <span class="nav-label">Meşk Modu</span>
+            </li>
+            <li class="nav-item" data-section="transpose">
+                <span class="nav-icon">🔄</span>
+                <span class="nav-label">Transpoze</span>
+            </li>
+            <li class="nav-item" data-section="gecki">
+                <span class="nav-icon">🗺️</span>
+                <span class="nav-label">Geçki Haritası</span>
+            </li>
+            <li class="nav-item" data-section="neycare">
+                <span class="nav-icon">🛠</span>
+                <span class="nav-label">Ney Bakım</span>
+            </li>
+            <li class="nav-item" data-section="eartraining">
+                <span class="nav-icon">👂</span>
+                <span class="nav-label">Kulak Eğitimi</span>
+            </li>
+            <li class="nav-item" data-section="library">
+                <span class="nav-icon">📚</span>
+                <span class="nav-label">Kütüphane</span>
+            </li>
+            <li class="nav-item" data-section="profile">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Profil</span>
+            </li>
+        </ul>
+        <div class="streak-display">
+            <span class="streak-icon">🔥</span>
+            <span class="streak-count" id="streakCount">0</span>
+            <span class="streak-label">gün seri</span>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="section active">
+            <header class="section-header">
+                <h1>Hoş Geldiniz</h1>
+                <p class="subtitle">Ney öğrenme yolculuğunuzda ilerlemenizi takip edin</p>
+            </header>
+
+            <div class="dashboard-grid">
+                <!-- Progress Overview Card -->
+                <div class="card progress-card">
+                    <div class="card-header">
+                        <h2>📈 Genel İlerleme</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="level-badge" id="userLevel">
+                            <span class="level-number">1</span>
+                            <span class="level-title">Meraklı</span>
+                        </div>
+                        <div class="xp-bar-container">
+                            <div class="xp-bar-fill" id="xpBarFill" style="width: 0%"></div>
+                        </div>
+                        <div class="xp-text">
+                            <span id="currentXP">0</span> / <span id="maxXP">100</span> XP
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-value" id="completedTopics">0</span>
+                                <span class="stat-label">Tamamlanan Konu</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="completedPhases">0</span>
+                                <span class="stat-label">Tamamlanan Faz</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="totalPractice">0</span>
+                                <span class="stat-label">Dakika Pratik</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="earnedBadges">0</span>
+                                <span class="stat-label">Rozet</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daily Task Card -->
+                <div class="card daily-task-card"
+                    style="border-color: var(--jade); box-shadow: 0 0 20px rgba(46, 204, 113, 0.1);">
+                    <div class="card-header" style="background: rgba(46, 204, 113, 0.1);">
+                        <h2 style="color: var(--jade); text-shadow: 0 0 10px rgba(46, 204, 113, 0.3);">🌟 Günün Görevi
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <h3 id="dailyTaskTitle" style="color: var(--text-primary); margin-bottom: 8px;">Rast Makamında 5
+                            Dk Dem</h3>
+                        <p id="dailyTaskDesc"
+                            style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+                            Sabahın dinginliğinde Rast makamı zihne ferahlık verir. Sol notasında ±15 cent hassasiyetle
+                            5 dakika kal.
+                        </p>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: var(--gold); font-weight: bold;">🎁 +50 XP Bonus</span>
+                            <button id="btnStartDailyTask" class="btn btn-primary"
+                                style="background: var(--jade); color: #000; border:none; font-weight:bold;">Tuner'a
+                                Git</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Did You Know Card -->
+                <div class="card did-you-know-card">
+                    <div class="card-header">
+                        <h2>💡 Biliyor muydun?</h2>
+                    </div>
+                    <div class="card-body">
+                        <p id="curiosityText"
+                            style="color: var(--text-secondary); font-style: italic; line-height: 1.5; font-size: 0.95rem;">
+                            "Neyin 9 boğumdan oluşması, insanın anne karnındaki 9 aylık gelişim sürecini ve tekâmülünü
+                            sembolize eder."
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Golden Ratio Card -->
+                <div class="card golden-ratio-card">
+                    <div class="card-header">
+                        <h2>⚖️ Altın Oran Modeli</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="ratio-chart">
+                            <div class="ratio-segment technical" style="--percentage: 40">
+                                <span class="ratio-label">Teknik %40</span>
+                            </div>
+                            <div class="ratio-segment theory" style="--percentage: 25">
+                                <span class="ratio-label">Teori %25</span>
+                            </div>
+                            <div class="ratio-segment repertoire" style="--percentage: 25">
+                                <span class="ratio-label">Repertuvar %25</span>
+                            </div>
+                            <div class="ratio-segment listening" style="--percentage: 10">
+                                <span class="ratio-label">Dinleme %10</span>
+                            </div>
+                        </div>
+                        <div class="ratio-legend">
+                            <div class="legend-item">
+                                <span class="legend-color technical"></span>
+                                <span>Pratik Çalışma</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color theory"></span>
+                                <span>Teori & Nazariyat</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color repertoire"></span>
+                                <span>Repertuvar & İcra</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color listening"></span>
+                                <span>Aktif Dinleme</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Phase Card -->
+                <div class="card current-phase-card">
+                    <div class="card-header">
+                        <h2>🎯 Mevcut Faz</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="phase-info" id="currentPhaseInfo">
+                            <div class="phase-icon">🌱</div>
+                            <h3 id="currentPhaseTitle">İlk Nefes: Temel Hazırlık</h3>
+                            <p id="currentPhaseDesc">Neyden stabil, temiz bir dem sesi çıkarabilme</p>
+                            <div class="phase-progress">
+                                <div class="phase-progress-bar">
+                                    <div class="phase-progress-fill" id="currentPhaseProgress" style="width: 0%"></div>
+                                </div>
+                                <span class="phase-progress-text" id="currentPhaseProgressText">0/10</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="continueLearning">Devam Et</button>
+                    </div>
+                </div>
+
+                <!-- Daily Goal Card -->
+                <div class="card daily-goal-card">
+                    <div class="card-header">
+                        <h2>📅 Günlük Hedef</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="goal-timer" id="goalTimer">
+                            <div class="timer-display" id="timerDisplay">60:00</div>
+                            <div class="timer-controls">
+                                <button class="btn btn-icon" id="timerStart">▶️</button>
+                                <button class="btn btn-icon" id="timerPause">⏸️</button>
+                                <button class="btn btn-icon" id="timerReset">🔄</button>
+                            </div>
+                        </div>
+                        <div class="goal-breakdown">
+                            <div class="goal-item">
+                                <span class="goal-icon">🎯</span>
+                                <span class="goal-time" id="goalTechnical">24 dk</span>
+                                <span class="goal-label">Teknik</span>
+                            </div>
+                            <div class="goal-item">
+                                <span class="goal-icon">📖</span>
+                                <span class="goal-time" id="goalTheory">15 dk</span>
+                                <span class="goal-label">Teori</span>
+                            </div>
+                            <div class="goal-item">
+                                <span class="goal-icon">🎶</span>
+                                <span class="goal-time" id="goalRepertoire">15 dk</span>
+                                <span class="goal-label">Repertuvar</span>
+                            </div>
+                            <div class="goal-item">
+                                <span class="goal-icon">👂</span>
+                                <span class="goal-time" id="goalListening">6 dk</span>
+                                <span class="goal-label">Dinleme</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity Card -->
+                <div class="card activity-card">
+                    <div class="card-header">
+                        <h2>📜 Son Aktiviteler</h2>
+                    </div>
+                    <div class="card-body">
+                        <ul class="activity-list" id="activityList">
+                            <li class="activity-item empty">Henüz aktivite yok</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Badges Card -->
+                <div class="card badges-card">
+                    <div class="card-header">
+                        <h2>🏆 Rozetler</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="badges-grid" id="badgesGrid">
+                            <!-- Badges will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wave 2 Stats Cards -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🎲 Gelişim Tahmini (Monte Carlo)</h2>
+                    </div>
+                    <div class="card-body" id="monteCarloResult">
+                        <p style="color:var(--text-muted)">Yeterli veri bekleniyor...</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🌡️ Entonasyon Isı Haritası</h2>
+                    </div>
+                    <div class="card-body"><canvas id="heatmapCanvas" width="350" height="150"
+                            style="width:100%;background:rgba(0,0,0,0.2);border-radius:8px"></canvas></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2>⚖️ Altın Oran Analizi</h2>
+                    </div>
+                    <div class="card-body" id="goldenRatioAnalysis">
+                        <p style="color:var(--text-muted)">Pratik verisi bekleniyor...</p>
+                    </div>
+                </div>
+                <!-- Advanced Stats Panel (Student Edition) -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📊 İleri İstatistiksel Analiz</h2>
+                    </div>
+                    <div class="card-body" id="advancedStatsPanel">
+                        <!-- Efficiency Frontier -->
+                        <div style="margin-bottom:16px">
+                            <h4 style="color:var(--gold-light);font-size:0.9rem;margin-bottom:8px">📈 Pratik Verimlilik
+                                Sınırı (Efficiency Frontier)</h4>
+                            <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:8px" id="effFrontierText">
+                                Yeterli veri bekleniyor...</p>
+                            <div style="background:rgba(255,255,255,0.02);padding:12px;border-radius:8px"
+                                id="effFrontierRecommendation"></div>
+                        </div>
+                        <!-- Bayesian Progress -->
+                        <div style="margin-bottom:16px;border-top:1px solid var(--border-glass);padding-top:16px">
+                            <h4 style="color:var(--gold-light);font-size:0.9rem;margin-bottom:8px">⏱️ Bayesci İlerleme
+                                Tahmini</h4>
+                            <div style="background:rgba(255,255,255,0.02);padding:12px;border-radius:8px">
+                                <p style="font-size:0.8rem;color:var(--text-secondary)">Gerçek zamanlı "Neyzen" (Faz 12)
+                                    Ulaşım Tahmini</p>
+                                <p style="font-size:1.5rem;font-weight:900;color:var(--jade)"
+                                    id="bayesianDatePrediction">--</p>
+                                <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px"
+                                    id="bayesianConfidence">Güven Seviyesi: %0</p>
+                            </div>
+                        </div>
+                        <!-- Error Distribution (Skewness/Kurtosis) -->
+                        <div style="border-top:1px solid var(--border-glass);padding-top:16px">
+                            <h4 style="color:var(--gold-light);font-size:0.9rem;margin-bottom:8px">🎯 Hata Payı Dağılımı
+                            </h4>
+                            <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:8px" id="errorDistText">
+                                Tuner sapmalarının İstatistiksel Çarpıklık (Skewness) analizi bekleniyor...</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Makam Recognition Panel -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🎼 Otomatik Makam Tanıma</h2>
+                    </div>
+                    <div class="card-body" id="makamRecognitionPanel">
+                        <p style="color:var(--text-muted)">Makam tespiti için tuner'da nota çalın...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Curriculum Section -->
+        <section id="curriculum" class="section">
+            <header class="section-header">
+                <h1>12 Fazlı Müfredat</h1>
+                <p class="subtitle">Sıfırdan Usta Neyzen seviyesine adım adım ilerleyin</p>
+            </header>
+
+            <div class="curriculum-container">
+                <div class="phase-sidebar">
+                    <h3>Fazlar</h3>
+                    <ul class="phase-list" id="phaseList">
+                        <!-- Phases will be populated by JS -->
+                    </ul>
+                </div>
+
+                <div class="phase-content">
+                    <div class="phase-header" id="phaseHeader">
+                        <span class="phase-number">Faz 1</span>
+                        <h2 id="phaseTitle">İlk Nefes: Temel Hazırlık</h2>
+                        <span class="phase-icon-large">🌱</span>
+                    </div>
+                    <p class="phase-description" id="phaseDescription">
+                        Neyden stabil, temiz bir dem sesi çıkarabilme
+                    </p>
+                    <div class="verification-box">
+                        <strong>✅ Somut Çıktı:</strong>
+                        <span id="phaseVerification">10 saniye stabil dem sesi çıkarabilme</span>
+                    </div>
+
+                    <div class="topics-list" id="topicsList">
+                        <!-- Topics will be populated by JS -->
+                    </div>
+
+                    <div class="phase-actions">
+                        <button class="btn btn-secondary" id="prevPhase">← Önceki Faz</button>
+                        <button class="btn btn-primary" id="completePhase">Fazı Tamamla</button>
+                        <button class="btn btn-secondary" id="nextPhase">Sonraki Faz →</button>
+                        <button class="btn btn-primary" id="phaseExamBtn" style="margin-top:8px;width:100%">🎤 Sınav
+                            Modu</button>
+                        <div id="examStatus"
+                            style="margin-top:8px;padding:8px;text-align:center;color:var(--gold-light);font-size:0.85rem">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Finger Chart Section -->
+        <section id="fingerchart" class="section">
+            <header class="section-header">
+                <h1>İnteraktif Parmak Şeması</h1>
+                <p class="subtitle">7 delikli ney için parmak pozisyonlarını öğrenin</p>
+            </header>
+
+            <div class="fingerchart-container">
+                <div class="ney-diagram">
+                    <svg viewBox="0 0 200 600" class="ney-svg">
+                        <!-- Ney body -->
+                        <defs>
+                            <linearGradient id="neyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#d4a574;stop-opacity:1" />
+                                <stop offset="50%" style="stop-color:#c49564;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#d4a574;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+
+                        <!-- Main ney body -->
+                        <rect x="70" y="50" width="60" height="500" rx="10" fill="url(#neyGradient)" stroke="#8b7355"
+                            stroke-width="2" />
+
+                        <!-- Headpiece (başpare) -->
+                        <ellipse cx="100" cy="40" rx="25" ry="15" fill="#4a3728" stroke="#2d1f14" stroke-width="2" />
+
+                        <!-- Finger holes (7 holes) -->
+                        <circle class="finger-hole" data-hole="0" cx="100" cy="100" r="8" fill="#2d1f14"
+                            stroke="#1a0f0a" stroke-width="2" />
+                        <circle class="finger-hole" data-hole="1" cx="100" cy="150" r="8" fill="#2d1f14"
+                            stroke="#1a0f0a" stroke-width="2" />
+                        <circle class="finger-hole" data-hole="2" cx="100" cy="200" r="8" fill="#2d1f14"
+                            stroke="#1a0f0a" stroke-width="2" />
+                        <circle class="finger-hole" data-hole="3" cx="100" cy="250" r="8" fill="#2d1f14"
+                            stroke="#1a0f0a" stroke-width="2" />
+                        <circle class="finger-hole" data-hole="4" cx="100" cy="300" r="8" fill="#2d1f14"
+                            stroke="#1a0f0a" stroke-width="2" />
+                        <circle class="finger-hole" data-hole="5" cx="100" cy="350" r="8" fill="#2d1f14"
+                            stroke="#1a0f0a" stroke-width="2" />
+                        <circle class="finger-hole" data-hole="6" cx="100" cy="400" r="8" fill="#2d1f14"
+                            stroke="#1a0f0a" stroke-width="2" />
+
+                        <!-- Thumb hole indicator -->
+                        <circle class="thumb-hole" cx="55" cy="200" r="6" fill="#2d1f14" stroke="#1a0f0a"
+                            stroke-width="2" />
+
+                        <!-- Hole numbers -->
+                        <text x="115" y="105" class="hole-number">1</text>
+                        <text x="115" y="155" class="hole-number">2</text>
+                        <text x="115" y="205" class="hole-number">3</text>
+                        <text x="115" y="255" class="hole-number">4</text>
+                        <text x="115" y="305" class="hole-number">5</text>
+                        <text x="115" y="355" class="hole-number">6</text>
+                        <text x="115" y="405" class="hole-number">7</text>
+                        <text x="35" y="205" class="hole-number">T</text>
+
+                        <!-- Air flow animation -->
+                        <path class="air-flow" d="M 100 40 L 100 80" stroke="#c9a84c" stroke-width="3" fill="none"
+                            opacity="0.6" />
+                    </svg>
+                </div>
+
+                <div class="fingerchart-controls">
+                    <div class="control-group">
+                        <h3>Nota Seç</h3>
+                        <select id="noteSelect" class="select-input">
+                            <option value="">-- Nota Seçin --</option>
+                            <option value="Fa">Fa (Aşiran)</option>
+                            <option value="Sol">Sol (Rast)</option>
+                            <option value="La">La (Dügâh)</option>
+                            <option value="Si♭">Si♭ (Segâh)</option>
+                            <option value="Do">Do (Çargâh)</option>
+                            <option value="Re">Re (Nevâ)</option>
+                            <option value="Mi">Mi (Hüseyni)</option>
+                            <option value="Fa#">Fa# (Irak)</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <h3>Tescil (Oktav)</h3>
+                        <div class="octave-buttons">
+                            <button class="btn octave-btn" data-octave="1">Pes</button>
+                            <button class="btn octave-btn" data-octave="2">Orta</button>
+                            <button class="btn octave-btn" data-octave="3">Tiz</button>
+                        </div>
+                    </div>
+
+                    <div class="position-info" id="positionInfo">
+                        <h4>Parmak Pozisyonu</h4>
+                        <div class="info-content" id="positionContent">
+                            <p>Bir nota seçin veya diyagramdaki deliklere tıklayın</p>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <h3>Nota Girişi</h3>
+                        <div class="note-input-group">
+                            <input type="text" id="noteInput" class="text-input" placeholder="Örn: Sol La Si Do Re">
+                            <button class="btn btn-primary" id="showNotes">Göster</button>
+                        </div>
+                        <div class="note-cards" id="noteCards">
+                            <!-- Note cards will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Note Reading Section -->
+        <section id="notereading" class="section">
+            <header class="section-header">
+                <h1>Nota Okuma Çalışması</h1>
+                <p class="subtitle">Porte üzerinden nota okumayı öğrenin ve istatistiklerinizi takip edin</p>
+
+                <!-- Hardcore Analytics Panel (Top of the Note Reading Section) -->
+                <div class="note-analytics-panel"
+                    style="margin-top: 20px; background: rgba(25, 25, 35, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+                        <h3 style="color: var(--gold); margin:0;">🧠 Zayıf Yön Analizi (Yapay Zeka)</h3>
+                        <div style="font-size:0.85rem; color:var(--text-muted)">
+                            Doğruluk: <strong id="globalAccuracyRate" style="color:var(--jade)">%0</strong>
+                        </div>
+                    </div>
+                    <div class="analytics-grid"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <!-- Top 3 Failed Notes -->
+                        <div class="weak-notes-box"
+                            style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; border-left: 3px solid var(--ruby);">
+                            <h4
+                                style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:10px; margin-top:0;">
+                                En Çok Karıştırılan Notalar</h4>
+                            <div id="weakestNotesList" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <span style="font-size:0.8rem; color:var(--text-muted)">Henüz yeterli veri yok.</span>
+                            </div>
+                        </div>
+
+                        <!-- AI Recommendation -->
+                        <div class="ai-recommendation-box"
+                            style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; border-left: 3px solid var(--gold);">
+                            <h4
+                                style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:10px; margin-top:0;">
+                                🤖 Sistem Önerisi</h4>
+                            <p id="aiNoteRecommendation"
+                                style="font-size:0.85rem; color:var(--text-muted); line-height:1.4; margin:0;">
+                                Bol bol nota okuma pratiği yaparak makinenin sizi analiz etmesine izin verin.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="notereading-container">
+                <div class="staff-container" id="staffContainer">
+                    <svg viewBox="0 0 800 300" class="staff-svg">
+                        <!-- Staff lines -->
+                        <line x1="50" y1="100" x2="750" y2="100" stroke="#c9a84c" stroke-width="1" />
+                        <line x1="50" y1="120" x2="750" y2="120" stroke="#c9a84c" stroke-width="1" />
+                        <line x1="50" y1="140" x2="750" y2="140" stroke="#c9a84c" stroke-width="1" />
+                        <line x1="50" y1="160" x2="750" y2="160" stroke="#c9a84c" stroke-width="1" />
+                        <line x1="50" y1="180" x2="750" y2="180" stroke="#c9a84c" stroke-width="1" />
+
+                        <!-- Treble clef -->
+                        <text x="70" y="175" class="treble-clef">𝄞</text>
+
+                        <!-- Notes will be added dynamically -->
+                        <g id="staffNotes"></g>
+                    </svg>
+                </div>
+
+                <div class="note-controls">
+                    <div class="control-group">
+                        <h3>Çalışma Tipi</h3>
+                        <select id="exerciseType" class="select-input">
+                            <option value="random">Rastgele Nota</option>
+                            <option value="scale">Gam (Scale)</option>
+                            <option value="melody">Basit Melodi</option>
+                            <option value="quiz">Quiz</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <h3>Hız</h3>
+                        <input type="range" id="tempoSlider" class="range-input" min="40" max="200" value="80">
+                        <span id="tempoValue">80 BPM</span>
+                    </div>
+
+                    <div class="control-group">
+                        <button class="btn btn-primary" id="startExercise">Başla</button>
+                        <button class="btn btn-secondary" id="stopExercise">Durdur</button>
+                    </div>
+
+                    <div class="note-answer" id="noteAnswer"
+                        style="text-align:center; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 12px; margin-top: 15px;">
+                        <div style="margin-bottom: 15px;">
+                            <h4 style="color:var(--text-secondary); font-size:1rem; margin-bottom:10px;">Bu Hangi Nota?
+                            </h4>
+                            <p id="answerText"
+                                style="font-size: 2rem; color: var(--gold); font-weight: bold; margin: 0; min-height: 48px;">
+                                ?</p>
+                        </div>
+
+                        <!-- Hardcore Input Controls for Stats -->
+                        <div id="noteGuessGrid"
+                            style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px;">
+                            <!-- Buttons populated by JS based on current scope -->
+                        </div>
+
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                            <button class="btn btn-secondary" id="showAnswerBtn" style="font-size: 0.85rem;">Cevabı
+                                Gör</button>
+                            <button class="btn btn-primary" id="nextNote" style="font-size: 0.85rem;">Sonraki Nota
+                                →</button>
+                        </div>
+                        <div id="guessFeedbackMsg"
+                            style="margin-top: 10px; font-size: 0.9rem; font-weight: bold; min-height: 20px;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Video Eşliğinde Pratik Section -->
+        <section id="aianalysis" class="section">
+            <header class="section-header">
+                <h1>📹 Video Eşliğinde Pratik</h1>
+                <p class="subtitle">YouTube videolarını izleyerek eşlik edin ve notaları takip edin</p>
+            </header>
+
+            <div class="aianalysis-container">
+                <div class="analysis-input">
+                    <h3>YouTube URL</h3>
+                    <div class="input-group">
+                        <input type="text" id="youtubeUrl" class="text-input"
+                            placeholder="https://www.youtube.com/watch?v=...">
+                        <button class="btn btn-primary" id="analyzeUrl">Analiz Et</button>
+                    </div>
+                </div>
+
+                <div class="analysis-result" id="analysisResult">
+                    <div class="video-preview" id="videoPreview">
+                        <p>Video önizlemesi burada görünecek</p>
+                    </div>
+                    <div class="note-extraction" id="noteExtraction">
+                        <h4>🎵 Otonom Transkripsiyon (VexFlow)</h4>
+
+                        <div style="display:flex;gap:12px;margin:12px 0;align-items:center">
+                            <span style="font-size:0.85rem;color:var(--text-secondary)">Dinamik Enstrüman
+                                Haritalama:</span>
+                            <select id="mappingInstrumentSelect" class="select-input" style="padding:6px;width:150px">
+                                <option value="ney_mansur" selected>Ney (Mansur)</option>
+                                <option value="ney_kiz">Ney (Kız)</option>
+                                <option value="guitar">Gitar</option>
+                            </select>
+                            <span id="transcriptionStatus"
+                                style="font-size:0.8rem;color:var(--gold);font-style:italic">Bekleniyor...</span>
+                        </div>
+
+                        <!-- VexFlow Konteyneri -->
+                        <div id="vexflowContainer"
+                            style="background:#fff;border-radius:12px;padding:20px;min-height:200px;overflow-x:auto;margin-top:16px;">
+                            <p style="color:rgba(0,0,0,0.5);text-align:center;line-height:160px">Porte burada
+                                çizilecek...</p>
+                        </div>
+
+                        <div class="extracted-notes" id="extractedNotes" style="margin-top:16px">
+                            <!-- Raw extracted notes logs -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="manual-input">
+                    <h3>Manuel Nota Girişi</h3>
+                    <div class="input-group">
+                        <input type="text" id="manualNotes" class="text-input" placeholder="Sol La Si Do Re Mi Fa Sol">
+                        <button class="btn btn-primary" id="showManualNotes">Pozisyonları Göster</button>
+                    </div>
+                    <div class="manual-result" id="manualResult">
+                        <!-- Manual results will appear here -->
+                    </div>
+                </div>
+
+                <div class="song-database">
+                    <h3>Bilinen Eserler Veritabanı</h3>
+                    <div class="song-list" id="songList">
+                        <!-- Songs will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Floating Tuner Panel -->
+        <div id="floatingTuner"
+            style="display:none;position:fixed;bottom:20px;right:20px;width:220px;padding:16px;background:rgba(6,6,15,0.95);border:1px solid var(--gold);border-radius:16px;z-index:9999;backdrop-filter:blur(20px)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span style="color:var(--gold);font-weight:700">Floating Tuner</span>
+                <button id="closeFloatingTuner"
+                    style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">✖</button>
+            </div>
+            <div id="floatTunerNote" style="font-size:2rem;font-weight:900;color:var(--gold);text-align:center">—</div>
+            <button id="freezeNote" class="btn btn-secondary" style="width:100%;margin-top:8px">❄️ Dondur</button>
+        </div>
+
+        <!-- Practice Tools Section -->
+        <section id="practicetools" class="section">
+            <header class="section-header">
+                <h1>Pratik Araçlar</h1>
+                <p class="subtitle">Nefes, metronom ve zamanlayıcı araçları</p>
+                <div class="info-card-container top-info-card"
+                    style="margin-top: 15px; background: rgba(201,168,76,0.1); border-left: 4px solid var(--gold); padding: 15px; border-radius: 8px; text-align: left;">
+                    <h4 style="color:var(--gold); margin-bottom:5px; display:flex; align-items:center; gap:8px;">
+                        <span>💡</span> Araçların Amacı & Kullanımı
+                    </h4>
+                    <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px;">
+                        Bu bölümde yer alan araçlar, temel becerilerinizi mekanikleştirmek için tasarlanmıştır:
+                    </p>
+                    <ul style="font-size: 0.85rem; color: var(--text-muted); padding-left: 20px;">
+                        <li style="margin-bottom: 4px;"><strong>🥁 Metronom:</strong> Ritim ve usul duygunuzu (Aksak,
+                            Düyek vb.) geliştirir. Oyunlaştırma rozetleriyle motivasyonu yüksek tutar.</li>
+                        <li style="margin-bottom: 4px;"><strong>🌬️ Nefes Eğiticisi:</strong> Diyafram kontrolünü ve
+                            uzun dem üfleme stabilizasyonunu artırır.</li>
+                        <li><strong>⏱️ Pratik Zamanlayıcı:</strong> Günlük çalışma sürenizi takip ederek 'Altın Oran'
+                            verimliliğini ölçer.</li>
+                    </ul>
+                </div>
+            </header>
+
+            <div class="tools-grid">
+                <!-- Metronome -->
+                <div class="tool-card metronome-card">
+                    <div class="tool-header">
+                        <h2>🥁 Metronom</h2>
+                    </div>
+                    <div class="tool-body">
+                        <div class="bpm-display" id="bpmDisplay">80</div>
+                        <input type="range" id="bpmSlider" class="range-input" min="40" max="200" value="80">
+                        <div class="usul-presets" id="usulPresets">
+                            <button class="btn usul-btn" data-bpm="80" data-pattern="düyek">Düyek</button>
+                            <button class="btn usul-btn" data-bpm="100" data-pattern="sofyan">Sofyan</button>
+                            <button class="btn usul-btn" data-bpm="90" data-pattern="aksak">Aksak</button>
+                            <button class="btn usul-btn" data-bpm="120" data-pattern="yürük">Yürüksemai</button>
+                        </div>
+                        <div class="metronome-controls">
+                            <button class="btn btn-primary" id="metronomeStart">▶️ Başla</button>
+                            <button class="btn btn-secondary" id="metronomeStop">⏹️ Durdur</button>
+                        </div>
+                        <div class="beat-indicator" id="beatIndicator">
+                            <span class="beat-dot"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Breathing Trainer -->
+                <div class="tool-card breathing-card">
+                    <div class="tool-header">
+                        <h2>🌬️ Nefes Eğiticisi</h2>
+                    </div>
+                    <div class="tool-body">
+                        <div class="breathing-animation" id="breathingAnimation">
+                            <div class="breathing-circle">
+                                <div class="circle-inner" id="circleInner"></div>
+                            </div>
+                            <div class="breathing-text" id="breathingText">Hazır</div>
+                        </div>
+                        <div class="breathing-controls">
+                            <div class="breathing-settings">
+                                <label>Al (sn): <input type="number" id="inhaleTime" value="4" min="1" max="10"></label>
+                                <label>Tut (sn): <input type="number" id="holdTime" value="4" min="0" max="20"></label>
+                                <label>Ver (sn): <input type="number" id="exhaleTime" value="8" min="1"
+                                        max="20"></label>
+                            </div>
+                            <button class="btn btn-primary" id="breathingStart">Başla</button>
+                            <button class="btn btn-secondary" id="breathingStop">Durdur</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Practice Timer -->
+                <div class="tool-card timer-card">
+                    <div class="tool-header">
+                        <h2>⏱️ Pratik Zamanlayıcı</h2>
+                    </div>
+                    <div class="tool-body">
+                        <div class="timer-display-large" id="practiceTimerDisplay">00:00:00</div>
+                        <div class="timer-controls-large">
+                            <button class="btn btn-primary" id="practiceTimerStart">▶️ Başla</button>
+                            <button class="btn btn-secondary" id="practiceTimerPause">⏸️ Duraklat</button>
+                            <button class="btn btn-secondary" id="practiceTimerReset">🔄 Sıfırla</button>
+                        </div>
+                        <div class="session-stats">
+                            <h4>Bugünkü Pratik</h4>
+                            <p><span id="todayPractice">0</span> dakika</p>
+                        </div>
+                        <div class="weekly-stats">
+                            <h4>Haftalık İstatistik</h4>
+                            <div class="week-chart" id="weekChart">
+                                <div class="day-bar" data-day="Mon"></div>
+                                <div class="day-bar" data-day="Tue"></div>
+                                <div class="day-bar" data-day="Wed"></div>
+                                <div class="day-bar" data-day="Thu"></div>
+                                <div class="day-bar" data-day="Fri"></div>
+                                <div class="day-bar" data-day="Sat"></div>
+                                <div class="day-bar" data-day="Sun"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Reference -->
+                <div class="tool-card reference-card">
+                    <div class="tool-header">
+                        <h2>📚 Hızlı Referans</h2>
+                    </div>
+                    <div class="tool-body">
+                        <div class="reference-tabs">
+                            <button class="tab-btn active" data-tab="makams">Makamlar</button>
+                            <button class="tab-btn" data-tab="usuls">Usuller</button>
+                            <button class="tab-btn" data-tab="notes">Notalar</button>
+                        </div>
+                        <div class="tab-content active" id="makamsTab">
+                            <ul class="reference-list" id="makamList">
+                                <!-- Makams will be populated -->
+                            </ul>
+                        </div>
+                        <div class="tab-content" id="usulsTab">
+                            <ul class="reference-list" id="usulList">
+                                <!-- Usuls will be populated -->
+                            </ul>
+                        </div>
+                        <div class="tab-content" id="notesTab">
+                            <ul class="reference-list" id="noteList">
+                                <li><strong>Fa</strong> - Aşiran (Tüm delikler kapalı)</li>
+                                <li><strong>Sol</strong> - Rast (Alt 1 açık)</li>
+                                <li><strong>La</strong> - Dügâh (Alt 2 açık)</li>
+                                <li><strong>Si♭</strong> - Segâh (Alt 3 açık)</li>
+                                <li><strong>Do</strong> - Çargâh (Alt 4 açık)</li>
+                                <li><strong>Re</strong> - Nevâ (Alt 5 açık)</li>
+                                <li><strong>Mi</strong> - Hüseyni (Alt 6 açık)</li>
+                                <li><strong>Fa#</strong> - Irak (Tüm açık)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tuner Section -->
+        <section id="tuner" class="section">
+            <header class="section-header">
+                <h1>Gerçek Zamanlı Akort</h1>
+                <p class="subtitle">Mikrofonunuzu kullanarak doğru perdeyi yakalayın</p>
+            </header>
+            <div class="card" style="max-width:600px;margin:0 auto">
+                <div class="card-header" style="text-align:center">
+                    <h2>🎙️ Ses Frekans Analizi</h2>
+                </div>
+                <div class="card-body" style="text-align:center">
+                    <button class="btn btn-primary" id="tunerStartBtn" style="font-size:1.2rem;padding:12px 24px">🎤
+                        Başlat</button>
+
+                    <div style="margin:16px 0;text-align:left">
+                        <label style="font-size:0.85rem;color:var(--text-secondary)">Ney Tipi:</label>
+                        <select id="neyTypeSelect" class="select-input" style="width:100%;margin-top:4px">
+                            <option value="mansur">Mansur (La=440Hz)</option>
+                            <option value="kiz">Kız (Si≈493Hz)</option>
+                            <option value="sah">Şah (Sol≈392Hz)</option>
+                            <option value="supurde">Süpürde (Re≈587Hz)</option>
+                            <option value="bolahenk">Bolahenk (Mi≈659Hz)</option>
+                        </select>
+                    </div>
+
+                    <div style="margin:40px 0">
+                        <div id="tunerNote" style="font-size:4rem;font-weight:900;color:var(--gold)">—</div>
+                        <div id="tunerPerde" style="font-size:1.5rem;color:var(--gold-light);margin-top:8px">—</div>
+                        <div id="tunerFreq" style="font-size:1.2rem;color:var(--text-secondary);margin-top:4px">0 Hz
+                        </div>
+                    </div>
+
+                    <div style="margin:30px 0">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:0.85rem">
+                            <span>-50 cent</span>
+                            <span id="tunerCents" style="font-weight:700;color:var(--gold)">0 cent</span>
+                            <span>+50 cent</span>
+                        </div>
+                        <div style="height:12px;background:rgba(255,255,255,0.1);border-radius:6px;position:relative">
+                            <div
+                                style="position:absolute;left:50%;top:0;height:100%;width:2px;background:var(--gold);transform:translateX(-50%);z-index:2">
+                            </div>
+                            <div id="centsIndicator"
+                                style="position:absolute;left:50%;top:-4px;width:20px;height:20px;background:#fff;border-radius:50%;transform:translateX(-50%);transition:left 0.1s linear">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Spectrogram + Timbre Score -->
+                    <div style="margin-top:20px">
+                        <h4 style="color:var(--gold-light);margin-bottom:8px;font-size:0.9rem">📊 Spectrogram & Tını
+                            Analizi</h4>
+                        <canvas id="spectrogramCanvas" width="400" height="120"
+                            style="width:100%;background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:12px"></canvas>
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <span style="font-size:0.85rem;color:var(--text-secondary)">Tını Puanı:</span>
+                            <span id="timbreScore"
+                                style="font-size:1.5rem;font-weight:900;color:var(--gold)">--/100</span>
+                        </div>
+                    </div>
+
+                    <div
+                        style="text-align:left;background:rgba(255,255,255,0.02);padding:16px;border-radius:var(--radius-sm)">
+                        <h4 style="color:var(--gold-light);margin-bottom:12px">Ses Kalitesi Analizi</h4>
+                        <div style="margin-bottom:12px">
+                            <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:4px">
+                                <span>Temizlik</span><span id="toneFeedback">Bekleniyor...</span>
+                            </div>
+                            <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px">
+                                <div id="toneClarity"
+                                    style="height:100%;background:var(--sapphire);border-radius:3px;width:0%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:4px">
+                                <span>Stabilite</span>
+                            </div>
+                            <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px">
+                                <div id="toneStability"
+                                    style="height:100%;background:var(--jade);border-radius:3px;width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Meşk Modu Section -->
+        <section id="mesk" class="section">
+            <header class="section-header">
+                <h1>Sanal Meşk Modu</h1>
+                <p class="subtitle">Eş zamanlı melodi takibi ve ritim eşliği</p>
+            </header>
+            <div class="card" style="max-width:800px;margin:0 auto">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                    <h2 style="margin:0">🎼 Dinamik Seyir</h2>
+                    <div style="display:flex;gap:12px;align-items:center">
+                        <select id="meskMakam" class="select-input" style="width:150px">
+                            <option value="rast">Rast</option>
+                            <option value="uşşak">Uşşak</option>
+                            <option value="saba">Saba</option>
+                            <option value="hicaz">Hicaz</option>
+                        </select>
+                        <button class="btn btn-primary" id="meskStartBtn">🎶 Meşk Başlat</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div
+                        style="background:var(--bg-primary);border-radius:8px;padding:20px;height:240px;position:relative;overflow:hidden;border:1px solid var(--border-glass)">
+                        <div id="seyirCanvas" style="width:100%;height:100%;position:relative">
+                            <style>
+                                .seyir-note {
+                                    position: absolute;
+                                    width: 30px;
+                                    height: 30px;
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 0.75rem;
+                                    font-weight: 700;
+                                    transition: all 0.3s;
+                                    transform: translate(-50%, -50%)
+                                }
+
+                                .seyir-ball {
+                                    position: absolute;
+                                    width: 10px;
+                                    height: 10px;
+                                    background: var(--amber);
+                                    border-radius: 50%;
+                                    transform: translate(-50%, -50%);
+                                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                                    box-shadow: 0 0 10px var(--amber);
+                                    z-index: 2
+                                }
+                            </style>
+                        </div>
+                    </div>
+                    <div style="margin-top:20px;display:flex;align-items:center;gap:16px">
+                        <span>Tempo:</span>
+                        <input type="range" id="meskTempo" class="range-input" min="40" max="160" value="80"
+                            style="flex:1">
+                        <span id="meskTempoVal"
+                            style="font-weight:700;color:var(--gold);min-width:60px;text-align:right">80 BPM</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Geçki Haritası Section -->
+        <section id="gecki" class="section">
+            <header class="section-header">
+                <h1>Makam Geçki Haritası</h1>
+                <p class="subtitle">Makamlar arası geçiş ve akrabalıkları keşfedin</p>
+            </header>
+            <div style="display:grid;grid-template-columns:1fr 300px;gap:20px">
+                <div class="card">
+                    <div class="card-body" style="padding:0;overflow:hidden">
+                        <canvas id="geckiCanvas" width="900" height="600"
+                            style="width:100%;background:var(--bg-primary);cursor:crosshair"></canvas>
+                    </div>
+                </div>
+                <div>
+                    <div class="card" style="margin-bottom:16px">
+                        <div class="card-header">
+                            <h2>📖 Makam Bilgisi</h2>
+                        </div>
+                        <div class="card-body" id="geckiInfo">
+                            <p style="color:var(--text-muted)">Haritadaki bir makama tıklayarak detaylı bilgi alın.</p>
+                        </div>
+                    </div>
+                    <div class="card" style="margin-bottom:16px">
+                        <div class="card-header">
+                            <h2>🗺️ Rota Bul (Dijkstra)</h2>
+                        </div>
+                        <div class="card-body">
+                            <select id="geckiFrom" class="select-input" style="width:100%;margin-bottom:8px">
+                                <option value="Rast">Rast</option>
+                                <option value="Uşşak">Uşşak</option>
+                                <option value="Segâh">Segâh</option>
+                                <option value="Hicaz">Hicaz</option>
+                                <option value="Saba">Saba</option>
+                                <option value="Hüseyni">Hüseyni</option>
+                                <option value="Neva">Neva</option>
+                                <option value="Bayati">Bayati</option>
+                                <option value="Kürdî">Kürdî</option>
+                            </select>
+                            <select id="geckiTo" class="select-input" style="width:100%;margin-bottom:8px">
+                                <option value="Saba">Saba</option>
+                                <option value="Rast">Rast</option>
+                                <option value="Uşşak">Uşşak</option>
+                                <option value="Segâh">Segâh</option>
+                                <option value="Hicaz">Hicaz</option>
+                                <option value="Hüseyni">Hüseyni</option>
+                                <option value="Neva">Neva</option>
+                                <option value="Bayati">Bayati</option>
+                                <option value="Kürdî">Kürdî</option>
+                            </select>
+                            <button class="btn btn-primary" id="geckiFindRoute" style="width:100%">🗺 Rota Bul</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>🧩 Benzerlik Matrisi</h2>
+                        </div>
+                        <div class="card-body"><canvas id="similarityCanvas" width="350" height="350"
+                                style="width:100%;background:rgba(0,0,0,0.2);border-radius:8px"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transpoze Section -->
+        <section id="transpose" class="section">
+            <header class="section-header">
+                <h1>Ney Tipi Transpoze</h1>
+                <p class="subtitle">Ahenklere göre nota kaydırmalarını hesaplayın</p>
+            </header>
+            <div class="card" style="max-width:500px">
+                <div class="card-body">
+                    <div style="display:flex;gap:16px;align-items:center;margin-bottom:20px">
+                        <div style="flex:1">
+                            <label
+                                style="font-size:0.8rem;color:var(--text-secondary);display:block;margin-bottom:4px">Çalınan
+                                Ney</label>
+                            <select id="transposeFrom" class="select-input">
+                                <option value="mansur">Mansur (La)</option>
+                                <option value="kiz" selected>Kız (Si)</option>
+                                <option value="sah">Şah (Sol)</option>
+                                <option value="supurde">Süpürde (Re)</option>
+                                <option value="bolahenk">Bolahenk (Mi)</option>
+                            </select>
+                        </div>
+                        <div style="font-size:1.5rem;color:var(--gold)">→</div>
+                        <div style="flex:1">
+                            <label
+                                style="font-size:0.8rem;color:var(--text-secondary);display:block;margin-bottom:4px">Akort
+                                Karşılığı</label>
+                            <select id="transposeTo" class="select-input">
+                                <option value="mansur" selected>Mansur (La/Piyano)</option>
+                                <option value="kiz">Kız (Si)</option>
+                                <option value="sah">Şah (Sol)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="transposeResult"
+                        style="background:rgba(255,255,255,0.02);padding:16px;border-radius:var(--radius-sm);border:1px solid var(--border-glass)">
+                    </div>
+
+                    <!-- C Instrument Converter -->
+                    <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-glass)">
+                        <h3 style="color:var(--gold-light);font-size:1rem;margin-bottom:12px">🎺 C Enstrümanı
+                            Dönüştürücü</h3>
+                        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px">
+                            Ney ile çaldığınız notaları piyano, flüt gibi C enstrümanları için dönüştürün.
+                        </p>
+                        <div style="display:flex;gap:8px;margin-bottom:12px">
+                            <input type="text" id="cConverterNotes" class="text-input"
+                                placeholder="Örn: Sol La Si Do Re" style="flex:1">
+                            <button class="btn btn-primary" id="cConverterBtn">Dönüştür</button>
+                        </div>
+                        <div id="cConverterResult"
+                            style="background:rgba(201,168,76,0.1);padding:12px;border-radius:8px;min-height:40px">
+                            <p style="color:var(--text-muted);font-size:0.9rem">Dönüştürülmüş notalar burada
+                                görünecek...</p>
+                        </div>
+                    </div>
+
+                    <!-- 53-TET Comma Calculator (LaTeX Algoritmalı) -->
+                    <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-glass)">
+                        <h3 style="color:var(--gold-light);font-size:1rem;margin-bottom:12px">📐 53-TET Koma Hesaplayıcı
+                        </h3>
+                        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px">
+                            Türk Müziği 53 sesli sistemde koma değerlerini hesaplayın.
+                            <br>Formül: <span style="font-family:serif;font-style:italic">f<sub>koma</sub> =
+                                f<sub>ref</sub> · 2<sup>(n<sub>koma</sub>/53)</sup></span>
+                        </p>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                            <div>
+                                <label style="font-size:0.8rem;color:var(--text-secondary)">Referans Frekans
+                                    (Hz)</label>
+                                <input type="number" id="commaRefFreq" class="text-input" value="440"
+                                    style="width:100%">
+                            </div>
+                            <div>
+                                <label style="font-size:0.8rem;color:var(--text-secondary)">Koma Sayısı</label>
+                                <input type="number" id="commaCount" class="text-input" value="0" min="-53" max="53"
+                                    style="width:100%">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="commaCalcBtn"
+                            style="width:100%;margin-bottom:12px">Hesapla</button>
+                        <div id="commaResult" style="background:rgba(201,168,76,0.1);padding:12px;border-radius:8px">
+                            <p style="color:var(--gold);font-size:1.2rem;font-weight:900" id="commaFreqResult">440.0 Hz
+                            </p>
+                            <p style="color:var(--text-muted);font-size:0.85rem" id="commaPerdeResult">Çargâh (0 koma)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ney Bakım Section -->
+        <section id="neycare" class="section">
+            <header class="section-header">
+                <h1>Ney Bakım & Sorun Giderme</h1>
+                <p class="subtitle">Enstrümanınızı sağlıklı tutun</p>
+            </header>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:20px">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🧴 Yağlama Takibi</h2>
+                    </div>
+                    <div class="card-body" style="text-align:center">
+                        <div style="font-size:3rem;margin-bottom:12px">🏺</div>
+                        <p style="color:var(--text-secondary);margin-bottom:16px">Neyin kurumaması ve sesinin net
+                            çıkması için düzenli yağlanması şarttır.</p>
+                        <div
+                            style="padding:16px;background:rgba(255,255,255,0.02);border-radius:12px;margin-bottom:16px">
+                            <p style="font-size:0.85rem;color:var(--text-muted)">Son Yağlama</p>
+                            <h3 id="lastOilDate" style="color:var(--gold);margin:4px 0">Belirlenmedi</h3>
+                            <div id="oilReminder" style="font-size:0.8rem;padding:4px;border-radius:4px;margin-top:8px">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="oilDoneBtn">Bugün Yağladım</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🛠 Sorun Giderme</h2>
+                    </div>
+                    <div class="card-body">
+                        <style>
+                            .ts-question {
+                                padding: 12px;
+                                background: rgba(255, 255, 255, 0.04);
+                                border-radius: 6px;
+                                cursor: pointer;
+                                margin-bottom: 4px;
+                                font-size: 0.9rem;
+                                transition: background 0.2s
+                            }
+
+                            .ts-question:hover {
+                                background: rgba(255, 255, 255, 0.08)
+                            }
+
+                            .ts-answer {
+                                padding: 12px;
+                                color: var(--gold-dim);
+                                font-size: 0.85rem;
+                                margin-bottom: 8px;
+                                border-left: 2px solid var(--gold)
+                            }
+                        </style>
+                        <div id="troubleshootTree"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Acoustic Health / Timbre Fingerprinting -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>🔬 Akustik Sağlık & Timbre Analizi</h2>
+                </div>
+                <div class="card-body">
+                    <p style="color:var(--text-secondary);margin-bottom:12px">Neyinizin Tını Parmak İzini (Timbre
+                        Fingerprint) çıkararak kondisyonunu takip edin.</p>
+                    <div style="background:rgba(255,255,255,0.02);padding:16px;border-radius:8px;margin-bottom:12px">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                            <span style="font-size:0.85rem">Spectral Centroid (Parlaklık):</span>
+                            <span id="spectralCentroid" style="color:var(--gold);font-weight:bold">-- Hz</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between">
+                            <span style="font-size:0.85rem">Spectral Flatness (Doluluğu):</span>
+                            <span id="spectralFlatness" style="color:var(--gold);font-weight:bold">--</span>
+                        </div>
+                    </div>
+                    <div style="text-align:center" id="neyHealthStatus">
+                        <p style="color:var(--text-muted);font-size:0.85rem">Son tuner verisine göre teşhis...</p>
+                    </div>
+                    <button class="btn btn-secondary" id="analyzeAcousticHealthBtn"
+                        style="width:100%;margin-top:12px">🩻 Analiz Et</button>
+                </div>
+            </div>
+            </div>
+        </section>
+
+        <!-- Kütüphane Section -->
+        <section id="library" class="section">
+            <header class="section-header">
+                <h1>Kütüphane</h1>
+                <p class="subtitle">Neyzenler, terimler ve okuma listesi</p>
+            </header>
+            <div class="card">
+                <div class="card-header" style="padding:0">
+                    <div style="display:flex;border-bottom:1px solid var(--border-glass)">
+                        <div class="lib-tab active" data-lib="neyzens"
+                            style="padding:16px 24px;cursor:pointer;font-weight:600;font-size:0.9rem">Büyük Neyzenler
+                        </div>
+                        <div class="lib-tab" data-lib="terms"
+                            style="padding:16px 24px;cursor:pointer;font-weight:600;font-size:0.9rem">Sözlük</div>
+                        <div class="lib-tab" data-lib="books"
+                            style="padding:16px 24px;cursor:pointer;font-weight:600;font-size:0.9rem">Kitaplık</div>
+                    </div>
+                </div>
+                <div class="card-body" style="min-height:400px">
+                    <style>
+                        .lib-tab.active {
+                            color: var(--gold);
+                            box-shadow: inset 0 -3px 0 var(--gold);
+                            background: rgba(201, 168, 76, 0.05)
+                        }
+
+                        .neyzen-card {
+                            display: flex;
+                            gap: 16px;
+                            padding: 16px;
+                            border: 1px solid var(--border-glass);
+                            border-radius: 12px;
+                            margin-bottom: 12px;
+                            background: rgba(255, 255, 255, 0.01)
+                        }
+
+                        .neyzen-avatar {
+                            width: 60px;
+                            height: 60px;
+                            border-radius: 50%;
+                            background: rgba(201, 168, 76, 0.1);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 1.8rem;
+                            border: 2px solid var(--gold-dim)
+                        }
+
+                        .neyzen-years {
+                            font-size: 0.75rem;
+                            color: var(--text-muted);
+                            font-weight: 700;
+                            letter-spacing: 1px;
+                            margin: 4px 0 8px
+                        }
+
+                        .term-item {
+                            padding: 12px 16px;
+                            border-bottom: 1px solid rgba(255, 255, 255, 0.05)
+                        }
+
+                        .term-name {
+                            color: var(--gold-light);
+                            font-weight: 700;
+                            font-size: 0.95rem;
+                            margin-bottom: 4px
+                        }
+
+                        .term-def {
+                            color: var(--text-secondary);
+                            font-size: 0.85rem
+                        }
+                    </style>
+                    <div id="libraryContent"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Kulak Eğitimi Section -->
+        <section id="eartraining" class="section">
+            <header class="section-header">
+                <h1>👂 Kulak Eğitimi</h1>
+                <p class="subtitle">Koma ve cent farklarını duymayı öğrenin</p>
+            </header>
+            <div class="card" style="max-width:600px;margin:0 auto">
+                <div class="card-header">
+                    <h2>🎵 Koma-Cent Kulak Testi</h2>
+                </div>
+                <div class="card-body">
+                    <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem">
+                        İki ses dinleyin ve ikinci sesin daha tiz mi yoksa daha pes mi olduğunu tahmin edin.
+                    </p>
+                    <div style="margin-bottom:16px">
+                        <label
+                            style="font-size:0.85rem;color:var(--text-secondary);display:block;margin-bottom:8px">Zorluk
+                            Seviyesi (Cent Farkı)</label>
+                        <select id="earDifficulty" class="select-input">
+                            <option value="50">50 cent (Kolay)</option>
+                            <option value="25">25 cent (Orta)</option>
+                            <option value="10">10 cent (Zor)</option>
+                            <option value="5">5 cent (Usta - Koma Seviyesi)</option>
+                        </select>
+                    </div>
+                    <div style="text-align:center;margin:20px 0">
+                        <button class="btn btn-primary" id="earTrainStart" style="font-size:1.1rem;padding:12px 24px">🎮
+                            Testi Başlat</button>
+                    </div>
+                    <div style="background:rgba(201,168,76,0.1);border-radius:12px;padding:20px;margin:16px 0">
+                        <p id="earFeedback"
+                            style="font-size:1.2rem;font-weight:700;color:var(--gold);text-align:center;margin-bottom:12px">
+                            🎵 İki ses dinleyin...</p>
+                        <div style="display:flex;gap:12px;justify-content:center">
+                            <button class="btn btn-secondary ear-answer-btn" data-answer="higher"
+                                style="flex:1;padding:12px">📈 Daha Tiz</button>
+                            <button class="btn btn-secondary ear-answer-btn" data-answer="lower"
+                                style="flex:1;padding:12px">📉 Daha Pes</button>
+                        </div>
+                    </div>
+                    <div style="text-align:center">
+                        <p style="font-size:0.85rem;color:var(--text-secondary)">Skor:</p>
+                        <p id="earScore" style="font-size:1.5rem;font-weight:900;color:var(--gold)">0/0 (0%)</p>
+                    </div>
+                    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-glass)">
+                        <h4 style="color:var(--gold-light);margin-bottom:12px;font-size:0.9rem">📊 Perde Bazlı
+                            İstatistikler</h4>
+                        <div id="earTrainingStats" style="font-size:0.8rem;color:var(--text-muted)">
+                            <p>Pratik yaptıkça perde bazında başarı oranlarınız burada görünecek.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Profile Section -->
+        <section id="profile" class="section">
+            <header class="section-header">
+                <h1>Profil</h1>
+                <p class="subtitle">İstatistikleriniz ve başarımlarınız</p>
+            </header>
+
+            <div class="profile-container">
+                <div class="profile-header-card">
+                    <div class="avatar">
+                        <span class="avatar-icon">🎵</span>
+                    </div>
+                    <div class="profile-info">
+                        <h2 id="profileName">Neyzen Adayı</h2>
+                        <div class="level-badge-large" id="profileLevel">
+                            <span class="level-number">1</span>
+                            <span class="level-title">Meraklı</span>
+                        </div>
+                        <p class="join-date">Katılım: <span id="joinDate">Bugün</span></p>
+                    </div>
+                </div>
+
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <h3>Toplam XP</h3>
+                        <p class="stat-value" id="profileXP">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Tamamlanan Fazlar</h3>
+                        <p class="stat-value" id="profilePhases">0/12</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Tamamlanan Konular</h3>
+                        <p class="stat-value" id="profileTopics">0/144</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Toplam Pratik</h3>
+                        <p class="stat-value" id="profilePractice">0 saat</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>En Uzun Seri</h3>
+                        <p class="stat-value" id="profileStreak">0 gün</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Rozetler</h3>
+                        <p class="stat-value" id="profileBadges">0/15</p>
+                    </div>
+                </div>
+
+                <div class="badges-collection">
+                    <h3>Tüm Rozetler</h3>
+                    <div class="badges-grid-large" id="allBadgesGrid">
+                        <!-- All badges will be populated here -->
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Ayarlar</h3>
+                    <div class="settings-options">
+                        <label class="setting-item">
+                            <span>Günlük Hedef (dakika)</span>
+                            <input type="number" id="dailyGoalInput" value="60" min="15" max="180">
+                        </label>
+                        <label class="setting-item">
+                            <span>Ses Efektleri</span>
+                            <input type="checkbox" id="soundEffects" checked>
+                        </label>
+                        <label class="setting-item">
+                            <span>Bildirimler</span>
+                            <input type="checkbox" id="notifications" checked>
+                        </label>
+                        <button class="btn btn-danger" id="resetProgress">⚠️ İlerlemeyi Sıfırla</button>
+                        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-glass)">
+                            <h4 style="color:var(--gold-light);margin-bottom:10px">💾 Veri Yedekleme</h4>
+                            <div style="display:flex;gap:8px">
+                                <button class="btn btn-secondary" id="exportData">📁 Dışa Aktar (JSON)</button>
+                                <button class="btn btn-secondary" id="importData">📂 İçe Aktar</button>
+                                <input type="file" id="importFile" accept=".json" style="display:none">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Scripts -->
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

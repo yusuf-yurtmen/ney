@@ -1,0 +1,21 @@
+{
+  "name": "Ney Mastery - Hardcore Kapsamlı Öğrenme Platformu",
+  "short_name": "Ney Mastery",
+  "description": "Ney öğrenme ve istatistik takip platformu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06080F",
+  "theme_color": "#06080F",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
