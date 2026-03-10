@@ -10,6 +10,13 @@ const AppState = {
     tunerHistory: [],
     earTrainingStats: {},
     practiceLog: { technical: 0, theory: 0, repertoire: 0, listening: 0 },
+    ytState: {
+        player: null,
+        videoId: null,
+        isPlaying: false,
+        currentTime: 0,
+        syncInterval: null
+    },
 
     _djb2Hash(str) { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h) + str.charCodeAt(i); return (h >>> 0).toString(36); },
     load() {
@@ -907,6 +914,22 @@ const UI = {
         const neySelect = document.getElementById('neyTypeSelect');
         const specCanvas = document.getElementById('spectrogramCanvas');
 
+        // Wasm/Worker Thread Hazırlığı (Ağır DSP İşlemleri İçin)
+        let audioWorker = null;
+        try {
+            audioWorker = new Worker('essentia-worker.js');
+            audioWorker.onmessage = (e) => {
+                if (e.data.type === 'READY_ACK') console.log('✅ ' + e.data.payload);
+                if (e.data.type === 'AUDIO_RESULT') {
+                    // İleride ağır FFT, YIN dönüştürmeleri buradan gelecek.
+                    // Şimdilik UI'ı Main Thread'de tutuyoruz, altyapıyı hazır ettik.
+                }
+            };
+            audioWorker.postMessage({ type: 'INIT' });
+        } catch (err) {
+            console.warn("Worker başlatılamadı (PWA/CORS origin restriction). Main thread kullanılacak.");
+        }
+
         let sustainCount = 0;
         let sustainNote = null;
         let sustainGiven = false;
@@ -938,12 +961,19 @@ const UI = {
                     let freq = this._filterOctaveJump(rawFreq);
                     if (freq > -1) {
                         // Ney tipi offset
+                        // 53-TET (Koma Sistemi) hesaplaması
+                        let komaVerisi = this._comma53TET.getNearestComma(freq);
+
+                        // Standart 12-TET batı matematiği (Mevcut)
                         const offset = this._tunerNeyOffsets[neySelect?.value || 'mansur'] || 0;
                         freqEl.textContent = freq.toFixed(1) + ' Hz';
                         const n = Math.round(12 * (Math.log2(freq / 440))) + 69 - offset;
-                        const c = Math.floor(1200 * Math.log2(freq / (440 * Math.pow(2, (n + offset - 69) / 12))));
+                        const c = komaVerisi.centDeviation; // Batı cent'i yerine Koma sapmasını al
                         const nn = notes[((n % 12) + 12) % 12];
-                        noteEl.textContent = nn; perde.textContent = perdes[nn] || 'Ara Ses';
+
+                        // Ekrana yansıt
+                        noteEl.textContent = nn;
+                        perde.textContent = typeof komaVerisi.commaName !== 'undefined' ? komaVerisi.commaName : (perdes[nn] || 'Ara Ses');
                         centsEl.textContent = c + ' cent';
                         centsEl.style.color = Math.abs(c) < 10 ? 'var(--jade)' : 'var(--gold)';
                         if (ind) ind.style.left = `calc(50% + ${Math.max(-45, Math.min(45, c))}%)`;
@@ -999,21 +1029,36 @@ const UI = {
                         this._makamRecognition.addNote(nn);
                         // Makam tanıma UI güncelle
                         this.renderMakamRecognition();
-                        // Spectrogram çizimi
+                        // Spectrogram çizimi (Şelale / Waterfall efekti)
                         if (specCanvas && specAn) {
                             const sctx = specCanvas.getContext('2d');
+                            const w = specCanvas.width, h = specCanvas.height;
+
+                            // Mevcut resmi 1 pixel sola kaydır
+                            const imgData = sctx.getImageData(1, 0, w - 1, h);
+                            sctx.putImageData(imgData, 0, 0);
+
+                            // Yeni sütunu sağa çiz
                             const freqData = new Uint8Array(specAn.frequencyBinCount);
                             specAn.getByteFrequencyData(freqData);
-                            const w = specCanvas.width, h = specCanvas.height;
-                            sctx.clearRect(0, 0, w, h);
-                            const barW = w / freqData.length * 4;
-                            for (let i = 0; i < freqData.length / 4; i++) {
-                                const v = freqData[i] / 255;
-                                const hue = 45 - v * 45;
-                                sctx.fillStyle = `hsla(${hue}, 80%, ${20 + v * 60}%, ${0.3 + v * 0.7})`;
-                                sctx.fillRect(i * barW, h - v * h, barW - 1, v * h);
+
+                            // Logaritmik frekans eşlemesi veya basit crop (İlk 1/4'lük kısım faydalı)
+                            const usableBins = Math.floor(freqData.length / 4);
+                            const hStep = h / usableBins;
+
+                            for (let i = 0; i < usableBins; i++) {
+                                const v = freqData[i] / 255; // 0.0 - 1.0 arası güç
+                                // Renk skalası: Siyah -> Koyu Mavi -> Mor -> Kırmızı -> Sarı -> Beyaz (Hardcore Isı)
+                                let hue = (1.0 - v) * 240; // 240=Mavi, 0=Kırmızı
+                                if (v < 0.1) hue = 240; // noise floor
+
+                                sctx.fillStyle = `hsla(${hue}, 100%, ${v * 60}%, ${v + 0.1})`;
+                                // Çiz (Sağdaki son pixel eksenine diz)
+                                sctx.fillRect(w - 1, h - (i * hStep), 1, Math.max(1, hStep));
                             }
+
                             // Tını puanı hesapla
+
                             const ts = document.getElementById('timbreScore');
                             if (ts) {
                                 const score = this._calcTimbreScore(freqData);
@@ -1033,16 +1078,35 @@ const UI = {
             } catch (e) { this.notify('Mikrofon izni alınamadı', 'error'); }
         });
     },
-    _calcTimbreScore(freqData) {
+    _calcTimbreScore(freqData, sampleRate = 44100) {
         // Harmonik oranları analiz et - referans usta harmonik profili ile karşılaştır
         let harmonicSum = 0, total = 0;
-        const fundamental = freqData[1] || 1;
+        let weightedSum = 0; // Spectral Centroid için ağırlık
+
         // İlk 8 harmonik'i kontrol et
         for (let i = 1; i < Math.min(16, freqData.length); i++) {
             total += freqData[i];
+
+            // Nyquist frekansı ve Bin boyutu
+            const binFreq = i * (sampleRate / 2) / freqData.length;
+            weightedSum += binFreq * freqData[i];
+
             // Harmonikler genellikle fundamental'ın katları
             if (i > 1 && i % 4 < 3) harmonicSum += freqData[i];
         }
+        // Spectral Centroid (Ağırlık Merkezi) => Tizliği / Parlaklığı verir
+        let centroid = total > 0 ? (weightedSum / total) : 0;
+
+        // Spectral Flatness (Hışırtı miktarı)
+        // Normalde geometrik ortalama / aritmetik ortalama. Biz basitleştirerek gürültü oranına bakıyoruz.
+        let flatness = total > 0 ? (1.0 - (harmonicSum / total)) : 1.0;
+
+        AppState._lastTimbreAnalysis = {
+            centroid: centroid,
+            flatness: flatness,
+            totalEnergy: total
+        };
+
         // Zenginlik skoru: harmonik çeşitliliği
         let richness = total > 0 ? (harmonicSum / total) * 100 : 0;
         // Referans usta profili ile karşılaştırma (ideal: harmonikler azar azar azalır)
@@ -1102,6 +1166,65 @@ const UI = {
         // Reject if > 1.8x or < 0.55x of median (likely octave jump)
         if (freq > median * 1.8 || freq < median * 0.55) return median;
         return freq;
+    },
+
+    /* --- 53-TET MIDDLEWARE (TÜRK MÜZİĞİ KOMA SİSTEMİ) --- */
+    _comma53TET: {
+        // Türk müziği, oktavı 53eşit aralığa (koma) böler.
+        // Bu yapı, frekansı alıp en yakın makam notasına ve "koma" değerine yuvarlar.
+        octaveCommas: 53,
+        baseFreq: 440.0, // A4 = 440 (Mansur ahengi referansı)
+
+        getNearestComma(freq) {
+            if (freq <= 0) return { commaOffset: 0, nearestNote: '—' };
+            // Formül: Koma = 53 * log2(frekans / A4)
+            const exactComma = this.octaveCommas * Math.log2(freq / this.baseFreq);
+            const roundedComma = Math.round(exactComma);
+
+            // 53'lük sistemdeki nota isimleriyle haritalama (Basit Ahenk)
+            const commaNames = {
+                0: 'La (Dügâh)',
+                4: 'Si♭ (Kürdi)',
+                8: 'Si (Segâh)', // 8 koma = 1 bakiye = segâh/buselik
+                9: 'Si (Buselik)',
+                13: 'Do (Çargâh)', // Tam Ses
+                18: 'Do# (Hicaz)',
+                22: 'Re (Neva)',
+                26: 'Re# (Hisar)',
+                31: 'Mi (Hüseyni)',
+                35: 'Fa (Acem)',
+                39: 'Fa# (Eviç)',
+                44: 'Sol (Gerdaniye)',
+                48: 'Sol# (Şehnaz)'
+            };
+
+            // Modüler matematik ile oktavı düzleştir (0-52 arası değer)
+            let modComma = ((roundedComma % 53) + 53) % 53;
+
+            // En yakın eşleşmeyi bul
+            let nearestNote = '—';
+            let minDiff = 53;
+
+            for (const [key, name] of Object.entries(commaNames)) {
+                let parseK = parseInt(key);
+                let diff = Math.min(Math.abs(modComma - parseK), 53 - Math.abs(modComma - parseK));
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    nearestNote = name;
+                }
+            }
+
+            // Kalan sapmayı cent'e çevir
+            // 1 Koma = 1200 / 53 = 22.64 cent
+            const centDeviation = (exactComma - roundedComma) * (1200 / 53);
+
+            return {
+                exactComma,
+                roundedComma,
+                commaName: nearestNote,
+                centDeviation: Math.round(centDeviation)
+            };
+        }
     },
 
     /* --- MESK (FM Synthesis) --- */
@@ -1193,30 +1316,114 @@ const UI = {
             { x: 450, y: 100, n: 'Hicaz' }, { x: 200, y: 400, n: 'Saba' }, { x: 700, y: 400, n: 'Hüseyni' },
             { x: 150, y: 500, n: 'Bayati' }, { x: 700, y: 500, n: 'Neva' }, { x: 450, y: 500, n: 'Kürdî' }
         ];
-        let highlightPath = null;
+        // Animasyon Değişkenleri
+        let animFrame;
+        let animProgress = 0;
+        let isAnimating = false;
+
         const draw = () => {
             ctx.clearRect(0, 0, 900, 600);
+
             // Kenarlar
             this._makamGraph.edges.forEach(([a, b, w, note]) => {
                 const na = nodes.find(n => n.n === a), nb = nodes.find(n => n.n === b);
                 if (!na || !nb) return;
-                const isHighlighted = highlightPath && highlightPath.some((p, i) => i < highlightPath.length - 1 && ((highlightPath[i].makam === a && highlightPath[i + 1].makam === b) || (highlightPath[i].makam === b && highlightPath[i + 1].makam === a)));
-                ctx.strokeStyle = isHighlighted ? 'var(--gold)' : 'rgba(255,255,255,0.1)';
-                ctx.lineWidth = isHighlighted ? 4 : 2;
+
+                let isHighlighted = false;
+                let edgeProgress = 0;
+
+                if (highlightPath && isAnimating) {
+                    // Animasyonlu Çizim
+                    for (let i = 0; i < highlightPath.length - 1; i++) {
+                        if ((highlightPath[i].makam === a && highlightPath[i + 1].makam === b) ||
+                            (highlightPath[i].makam === b && highlightPath[i + 1].makam === a)) {
+                            isHighlighted = true;
+                            // Animasyon progress logic (kaba hesaplama, her kenar sırasıyla yanar)
+                            const currentTargetScale = (i + 1) * (1 / (highlightPath.length - 1));
+                            const previousScale = i * (1 / (highlightPath.length - 1));
+
+                            if (animProgress >= currentTargetScale) {
+                                edgeProgress = 1;
+                            } else if (animProgress > previousScale) {
+                                edgeProgress = (animProgress - previousScale) / (1 / (highlightPath.length - 1));
+                            }
+                            break;
+                        }
+                    }
+                } else if (highlightPath && !isAnimating) {
+                    // Statik Çizim (Animasyon bitince)
+                    isHighlighted = highlightPath.some((p, i) => i < highlightPath.length - 1 && ((highlightPath[i].makam === a && highlightPath[i + 1].makam === b) || (highlightPath[i].makam === b && highlightPath[i + 1].makam === a)));
+                    if (isHighlighted) edgeProgress = 1;
+                }
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.moveTo(na.x, na.y); ctx.lineTo(nb.x, nb.y); ctx.stroke();
-                // Köprü notu göster
-                if (isHighlighted) {
-                    ctx.fillStyle = '#c9a84c'; ctx.font = 'bold 11px Inter'; ctx.textAlign = 'center';
-                    ctx.fillText(note, (na.x + nb.x) / 2, (na.y + nb.y) / 2 - 8);
+
+                if (isHighlighted && edgeProgress > 0) {
+                    ctx.strokeStyle = 'var(--gold)';
+                    ctx.lineWidth = 4;
+                    ctx.shadowColor = 'rgba(201, 168, 76, 0.8)';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.moveTo(na.x, na.y);
+
+                    // Kısmi Çizim (Animasyon için)
+                    const endX = na.x + (nb.x - na.x) * edgeProgress;
+                    const endY = na.y + (nb.y - na.y) * edgeProgress;
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+                    ctx.shadowBlur = 0; // reset
+
+                    // Köprü notu göster
+                    if (edgeProgress > 0.5) {
+                        ctx.fillStyle = '#c9a84c'; ctx.font = 'bold 11px Inter'; ctx.textAlign = 'center';
+                        ctx.fillText(note, (na.x + nb.x) / 2, (na.y + nb.y) / 2 - 8);
+                    }
                 }
             });
+
             // Düğümler
             nodes.forEach(n => {
-                const inPath = highlightPath && highlightPath.some(p => p.makam === n.n);
-                ctx.fillStyle = inPath ? '#c9a84c' : 'rgba(201,168,76,0.5)'; ctx.beginPath(); ctx.arc(n.x, n.y, 35, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#06060f'; ctx.font = 'bold 13px Inter'; ctx.textAlign = 'center'; ctx.fillText(n.n, n.x, n.y + 5);
+                let inPath = false;
+                let nodeActive = false;
+
+                if (highlightPath) {
+                    const nodeIndex = highlightPath.findIndex(p => p.makam === n.n);
+                    if (nodeIndex !== -1) {
+                        inPath = true;
+                        if (!isAnimating || animProgress >= (nodeIndex / Math.max(1, highlightPath.length - 1))) {
+                            nodeActive = true;
+                        }
+                    }
+                }
+
+                ctx.fillStyle = nodeActive ? '#c9a84c' : 'rgba(201,168,76,0.3)';
+                if (nodeActive) {
+                    ctx.shadowColor = 'rgba(201, 168, 76, 1)';
+                    ctx.shadowBlur = 15;
+                } else {
+                    ctx.shadowBlur = 0;
+                }
+
+                ctx.beginPath(); ctx.arc(n.x, n.y, 35, 0, Math.PI * 2); ctx.fill();
+                ctx.shadowBlur = 0; // reset
+                ctx.fillStyle = nodeActive ? '#06060f' : '#fff';
+                ctx.font = 'bold 13px Inter'; ctx.textAlign = 'center'; ctx.fillText(n.n, n.x, n.y + 5);
             });
-        }; draw();
+
+            if (isAnimating) {
+                animProgress += 0.015; // Animation speed
+                if (animProgress <= 1) {
+                    animFrame = requestAnimationFrame(draw);
+                } else {
+                    isAnimating = false;
+                    draw(); // Final static draw to ensure everything is full scale
+                }
+            }
+        };
+
+        draw();
         can.addEventListener('click', e => {
             const r = can.getBoundingClientRect(), x = (e.clientX - r.left) * (900 / r.width), y = (e.clientY - r.top) * (600 / r.height);
             const clicked = nodes.find(n => Math.hypot(n.x - x, n.y - y) < 35);
@@ -1231,12 +1438,105 @@ const UI = {
             findBtn.addEventListener('click', () => {
                 const path = this._dijkstra(fromSel.value, toSel.value);
                 if (path) {
-                    highlightPath = path; draw();
+                    highlightPath = path;
+
+                    // Trigger Animation
+                    if (animFrame) cancelAnimationFrame(animFrame);
+                    animProgress = 0;
+                    isAnimating = true;
+                    draw();
+
                     const bridges = path.filter(p => p.bridge).map(p => `${p.makam} (üzerinden: ${p.bridge})`).join(' → ');
                     info.innerHTML = `<h3 style="color:var(--gold)">Geçki Rotası</h3><p style="color:var(--text-secondary);margin-top:8px">${path.map(p => p.makam).join(' → ')}</p><p style="color:var(--text-muted);margin-top:8px;font-size:0.85rem">Köprü Notaları: ${bridges || 'Direkt geçiş'}</p>`;
                 } else {
-                    highlightPath = null; draw();
+                    highlightPath = null;
+                    isAnimating = false;
+                    draw();
                     info.innerHTML = '<p style="color:var(--ruby)">Bu geçki rotası bulunamadı.</p>';
+                }
+            });
+        }
+
+        // AI MEŞK PARTNERİ (DEM/TANBUR)
+        const droneBtn = document.getElementById('droneToggle');
+        const droneVol = document.getElementById('droneVolume');
+        const makamSelect = document.getElementById('geckiFrom'); // Rast, Uşşak vb.
+
+        if (droneBtn && droneVol && makamSelect) {
+            let droneCtx = null;
+            let droneOsc = null;
+            let droneGain = null;
+            let isDronePlaying = false;
+
+            // Bazı makamların KARAR (Dem) sesleri (Kaba frekanslar - Mansur'a göre)
+            // Dügâh (La) = 440, Rast (Sol) = 392, Segâh (Si) = ~493 vb.
+            const demFreqs = {
+                'Rast': 392.00, // Sol
+                'Uşşak': 440.00, // La
+                'Segâh': 493.88, // Si (Koma payı hariç kaba)
+                'Hicaz': 440.00, // La
+                'Saba': 440.00,  // La (Çargâh veya Dügâh demlenir genelde ama basit Dügâh)
+                'Hüseyni': 440.00, // La
+                'Neva': 587.33,  // Re
+                'Bayati': 440.00, // La
+                'Kürdî': 440.00  // La
+            };
+
+            const startDrone = () => {
+                if (!droneCtx) droneCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (droneCtx.state === 'suspended') droneCtx.resume();
+
+                droneOsc = droneCtx.createOscillator();
+                droneGain = droneCtx.createGain();
+
+                // Tanbur / Ney üfleme hissiyatı için testere dişi (sawtooth) veya triangle
+                droneOsc.type = 'triangle';
+
+                const selectedMakam = makamSelect.value;
+                droneOsc.frequency.value = demFreqs[selectedMakam] || 440.0;
+
+                // Ses seviyesini ayarla
+                const vol = parseInt(droneVol.value) / 100;
+                droneGain.gain.setValueAtTime(vol * 0.3, droneCtx.currentTime); // Master volume limit 0.3
+
+                // Bağla ve başlat
+                droneOsc.connect(droneGain);
+                droneGain.connect(droneCtx.destination);
+                droneOsc.start();
+
+                isDronePlaying = true;
+                droneBtn.innerHTML = '<span>⏸️ Dem Kapat</span>';
+                droneBtn.classList.replace('btn-secondary', 'btn-primary');
+            };
+
+            const stopDrone = () => {
+                if (droneOsc) {
+                    droneOsc.stop();
+                    droneOsc.disconnect();
+                    droneOsc = null;
+                }
+                isDronePlaying = false;
+                droneBtn.innerHTML = '<span>▶️ Dem Ver</span>';
+                droneBtn.classList.replace('btn-primary', 'btn-secondary');
+            };
+
+            droneBtn.addEventListener('click', () => {
+                if (isDronePlaying) stopDrone();
+                else startDrone();
+            });
+
+            droneVol.addEventListener('input', (e) => {
+                if (isDronePlaying && droneGain) {
+                    const vol = parseInt(e.target.value) / 100;
+                    droneGain.gain.setTargetAtTime(vol * 0.3, droneCtx.currentTime, 0.1);
+                }
+            });
+
+            // Makam değiştiğinde drone çalışıyorsa frekansı güncelle
+            makamSelect.addEventListener('change', () => {
+                if (isDronePlaying && droneOsc) {
+                    const selectedMakam = makamSelect.value;
+                    droneOsc.frequency.setTargetAtTime(demFreqs[selectedMakam] || 440.0, droneCtx.currentTime, 0.2);
                 }
             });
         }
@@ -1308,6 +1608,7 @@ const UI = {
         ].map(i => `<div class="ts-question">${i.q}</div><div class="ts-answer">${i.a}</div>`).join('');
 
         // Acoustic Health Timbre Analizi
+        // Acoustic Health Timbre Analizi (Gerçek Zamanlı Spectral Centroid Bağlantısı)
         const hBtn = document.getElementById('analyzeAcousticHealthBtn');
         if (hBtn) {
             hBtn.addEventListener('click', () => {
@@ -1315,26 +1616,22 @@ const UI = {
                 const sF = document.getElementById('spectralFlatness');
                 const status = document.getElementById('neyHealthStatus');
 
-                // Tuner'den gelen frekans history'den Spectral iz düşüm benzeri analiz
-                // (Gerçek ortamda bu _calcTimbreScore anındaki FFT datasından alınmalıdır. Burada simulate edeceğiz)
-                const isTuned = AppState.tunerHistory.length > 10;
+                // Tuner'den gelen güncel Timbre/Harmonics değerlerini okuyoruz
+                const timbreData = AppState._lastTimbreAnalysis || null;
 
-                if (!isTuned) {
-                    this.notify('Analiz için tunerda biraz ney çalmalısınız!', 'warning');
+                if (!timbreData || timbreData.totalEnergy < 50) {
+                    if (status) status.innerHTML = "Hata: Yeterli ses verisi yok. Tuner sekmesinde 5 saniye ses verin.";
                     return;
                 }
 
-                // Simulate Timbre Extraction based on last tuner inputs
-                const mockCentroid = 800 + (Math.random() * 400); // 800-1200 hz
-                const mockFlatness = 0.02 + (Math.random() * 0.05); // 0.02 - 0.07 tonalite orani
-
-                if (sC) sC.textContent = mockCentroid.toFixed(1) + ' Hz';
-                if (sF) sF.textContent = mockFlatness.toFixed(3);
+                if (sC) sC.textContent = timbreData.centroid.toFixed(0) + ' Hz';
+                if (sF) sF.textContent = timbreData.flatness.toFixed(2);
 
                 if (status) {
-                    if (mockFlatness > 0.05) {
+                    if (timbreData.flatness > 0.05) {
                         status.innerHTML = `<p style="color:var(--amber);font-size:0.9rem;font-weight:bold">⚠️ Nefes Sesi Yüksek (Gating Uyarısı)</p><p style="font-size:0.75rem;color:var(--text-secondary)">İçi kurumuş olabilir, yağlama gerektirir.</p>`;
-                    } else if (mockCentroid > 1100) {
+                        this.notify("Ney'inizin içi kurumuş olabilir. Lütfen yağlamayı düşünün.", 'error');
+                    } else if (timbreData.centroid > 1400) {
                         status.innerHTML = `<p style="color:var(--amber);font-size:0.9rem;font-weight:bold">⚠️ Aşırı Parlak Ses</p><p style="font-size:0.75rem;color:var(--text-secondary)">Akustik yansıma normalden sert. Ney soğuk olabilir.</p>`;
                     } else {
                         status.innerHTML = `<p style="color:var(--jade);font-size:0.9rem;font-weight:bold">✨ Enstrüman Kondisyonu Kusursuz</p><p style="font-size:0.75rem;color:var(--text-secondary)">Tını parmak izi referans ustalar ile %94 uyuşuyor!</p>`;
@@ -1576,54 +1873,75 @@ const UI = {
             </div>`;
     },
 
-    /* --- ENTONASYON ISI HARİTASI + STABİLİTE --- */
+    /* --- ENTONASYON ISI HARİTASI (MATPLOTLIB TARZI SCATTER) --- */
     renderIntonationHeatmap() {
         const can = document.getElementById('heatmapCanvas'); if (!can) return;
         const ctx = can.getContext('2d');
         const notes = ['Fa', 'Sol', 'La', 'Si', 'Do', 'Re', 'Mi'];
         const w = can.width, h = can.height;
         ctx.clearRect(0, 0, w, h);
+
         const cellW = w / notes.length, cellH = h - 30;
+
+        // Arka Plan Grid Çizimi
+        ctx.fillStyle = 'rgba(255,255,255,0.02)';
+        ctx.fillRect(0, 0, w, cellH);
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        // 0 Cent Line (Center)
+        ctx.moveTo(0, cellH / 2); ctx.lineTo(w, cellH / 2);
+        ctx.stroke();
+
         notes.forEach((note, i) => {
             const data = AppState.tunerHistory.filter(t => t.note === note);
 
-            // Ortalama Sapma (Mutlak değer)
+            // X Eksen Sınırları (Hücre İçi)
+            const cx = i * cellW + (cellW / 2);
+
+            // Scatter Plot Box (Veri Noktaları Çizimi)
+            data.forEach(d => {
+                // Cent -50 ile +50 arasında
+                // +50 en üstte, -50 en altta. 0 Ortada
+                let clampedCents = Math.max(-50, Math.min(50, d.cents));
+                let py = (cellH / 2) - ((clampedCents / 50) * (cellH / 2));
+
+                // Jitter (X Ekseninde Noktaların Üst Üste Binmesini Engellemek İçin)
+                let px = cx + (Math.random() * (cellW * 0.4) - (cellW * 0.2));
+
+                ctx.beginPath();
+                ctx.arc(px, py, 3, 0, 2 * Math.PI);
+
+                // Renk: Cent 0'a yakınsa yeşil, uzaksa sarı/kırmızı
+                const hue = 120 - (Math.abs(clampedCents) / 50) * 120;
+                ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.6)`;
+                ctx.fill();
+            });
+
+            // Analitik Hesaplamalar
             const avgCent = data.length > 0 ? data.reduce((s, t) => s + Math.abs(t.cents), 0) / data.length : 0;
-
-            // Gerçek Ortalama (Yönlü, Skewness için)
             const meanCent = data.length > 0 ? data.reduce((s, t) => s + t.cents, 0) / data.length : 0;
-
-            // Standart Sapma
             const stdDev = data.length > 1 ? Math.sqrt(data.reduce((s, t) => s + Math.pow(t.cents - meanCent, 2), 0) / (data.length - 1)) : 0;
 
-            // Skewness (Asimetri) - Çan eğrisinin ne yöne yattığı
             let skewness = 0;
             if (data.length > 2 && stdDev > 0) {
                 const sum3 = data.reduce((s, t) => s + Math.pow((t.cents - meanCent) / stdDev, 3), 0);
                 skewness = sum3 * (data.length / ((data.length - 1) * (data.length - 2)));
             }
 
-            // Renk: yeşil (iyi) → sarı → kırmızı (kötü)
-            const ratio = Math.min(1, avgCent / 30);
-            const hue = 120 - ratio * 120;
-            ctx.fillStyle = `hsla(${hue}, 70%, 40%, 0.8)`;
-            ctx.fillRect(i * cellW + 2, 0, cellW - 4, cellH);
-
-            // Etiket
+            // Etiket Çizimi (Taban)
             ctx.fillStyle = '#e8e6e3'; ctx.font = 'bold 12px Inter'; ctx.textAlign = 'center';
-            ctx.fillText(note, i * cellW + cellW / 2, cellH + 15);
+            ctx.fillText(note, cx, cellH + 15);
             ctx.font = '10px Inter'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
 
-            // Metrikleri Çiz
-            ctx.fillText(`±${avgCent.toFixed(0)}c`, i * cellW + cellW / 2, cellH / 2 - 10);
-            ctx.fillText(`σ${stdDev.toFixed(1)}`, i * cellW + cellW / 2, cellH / 2 + 5);
+            // Dikey Ayırıcı Grid
+            ctx.beginPath(); ctx.moveTo(i * cellW, 0); ctx.lineTo(i * cellW, cellH); ctx.stroke();
 
-            // Skewness yön göstergesi
-            if (data.length > 2) {
+            // Metrikleri Çiz
+            if (data.length > 0) {
                 const skewText = skewness > 0.5 ? '↗ Tiz' : skewness < -0.5 ? '↘ Pes' : '↔ Dnly';
                 ctx.fillStyle = skewness > 0.5 ? '#e8a856' : skewness < -0.5 ? '#56a8e8' : '#a8e856';
-                ctx.fillText(`Skw:${skewness.toFixed(1)}`, i * cellW + cellW / 2, cellH / 2 + 20);
-                ctx.fillText(skewText, i * cellW + cellW / 2, cellH / 2 + 35);
+                ctx.fillText(`Skw:${skewness.toFixed(1)}`, cx, cellH + 28);
             }
         });
     },
@@ -1703,17 +2021,58 @@ const UI = {
         });
     },
 
-    /* --- YOUTUBE FLOATING TUNER --- */
+    /* --- YOUTUBE FLOATING TUNER & IFRAME API --- */
     setupFloatingTuner() {
-        const analyzeBtn = document.getElementById('analyzeUrl');
+        // Floating Tuner Sürükle-Bırak (Draggable) Mantığı
         const floatPanel = document.getElementById('floatingTuner');
         const freezeBtn = document.getElementById('freezeNote');
-        if (!analyzeBtn || !floatPanel) return;
-        analyzeBtn.addEventListener('click', () => {
-            if (floatPanel) floatPanel.style.display = 'block';
-        });
+
+        if (floatPanel) {
+            let isDragging = false;
+            let currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
+
+            floatPanel.addEventListener('mousedown', dragStart);
+            document.addEventListener('mouseup', dragEnd);
+            document.addEventListener('mousemove', drag);
+
+            function dragStart(e) {
+                if (e.target === freezeBtn || e.target.id === 'closeFloatingTuner') return; // Butonlara tıklanırsa sürükleme
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+                isDragging = true;
+                floatPanel.style.transition = 'none'; // Sürüklerken gecikmeyi önle
+            }
+
+            function dragEnd() {
+                isDragging = false;
+            }
+
+            function drag(e) {
+                if (isDragging) {
+                    e.preventDefault();
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                    xOffset = currentX;
+                    yOffset = currentY;
+
+                    // Ekran dışına çıkmayı engelle (opsiyonel ama sağlıklı)
+                    const rect = floatPanel.getBoundingClientRect();
+                    const winW = window.innerWidth;
+                    const winH = window.innerHeight;
+
+                    if (rect.left < 0) xOffset -= rect.left;
+                    if (rect.right > winW) xOffset -= (rect.right - winW);
+                    if (rect.top < 0) yOffset -= rect.top;
+                    if (rect.bottom > winH) yOffset -= (rect.bottom - winH);
+
+                    floatPanel.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0)`;
+                }
+            }
+        }
+
         const closeFloat = document.getElementById('closeFloatingTuner');
-        if (closeFloat) closeFloat.addEventListener('click', () => { floatPanel.style.display = 'none'; });
+        if (closeFloat) closeFloat.addEventListener('click', () => { if (floatPanel) floatPanel.style.display = 'none'; });
+
         // Dondur butonu
         if (freezeBtn) {
             freezeBtn.addEventListener('click', () => {
@@ -1722,10 +2081,163 @@ const UI = {
                     const mr = document.getElementById('manualResult');
                     const existing = mr?.innerHTML || '';
                     if (mr) mr.innerHTML = existing + `<div class="note-card" style="display:inline-block;margin:4px"><span class="note-card-name">${lastEntry.note}</span><small style="color:var(--text-muted)">${lastEntry.freq.toFixed(0)}Hz</small></div>`;
-                    this.notify(`❄️ ${lastEntry.note} (${lastEntry.freq.toFixed(0)}Hz) donduruldu`, 'success');
+                    this.notify(`❄️ ${lastEntry.note} (${lastEntry.freq.toFixed(0)}Hz) donduruldu. Eklemek için Manuel Nota bölümüne bakın.`, 'success');
                 } else { this.notify('Henüz ses tespit edilmedi', 'error'); }
             });
         }
+    },
+
+    /* --- YOUTUBE IFRAME INTEGRATION (Otonom Transkripsiyon) --- */
+    setupAIAnalysis() {
+        const analyzeBtn = document.getElementById('analyzeUrl');
+        const urlInput = document.getElementById('youtubeUrl');
+        const statusSpan = document.getElementById('transcriptionStatus');
+        const floatPanel = document.getElementById('floatingTuner');
+
+        if (!analyzeBtn || !urlInput) return;
+
+        // Extract Video ID helper
+        const extractVideoID = (url) => {
+            const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[7].length == 11) ? match[7] : false;
+        };
+
+        analyzeBtn.addEventListener('click', () => {
+            const url = urlInput.value.trim();
+            const videoId = extractVideoID(url);
+
+            if (!videoId) {
+                this.notify('Geçersiz YouTube URL\'si. Lütfen kontrol edin.', 'error');
+                return;
+            }
+
+            if (statusSpan) statusSpan.textContent = 'Bağlanıyor...';
+
+            // Eğer daha önceden player varsa yok et
+            if (AppState.ytState.player && typeof AppState.ytState.player.destroy === 'function') {
+                AppState.ytState.player.destroy();
+                clearInterval(AppState.ytState.syncInterval);
+            }
+
+            // Floating Tuner'ı aç
+            if (floatPanel) {
+                floatPanel.style.display = 'block';
+                // Eğer daha önce konum değiştirildiyse resetle (opsiyonel)
+                floatPanel.style.transform = 'translate3d(0,0,0)';
+            }
+
+            // YouTube Player API'yi ayağa kaldır
+            try {
+                // Not: YouTube API asenktron yüklenir. Eğer yüklendiğinden eminsek (global YT nesnesi varsa)
+                if (typeof YT !== 'undefined' && YT.Player) {
+                    this._initializeYTPlayer(videoId, statusSpan);
+                } else {
+                    // Script henüz indiyse global callback'i dinle
+                    if (statusSpan) statusSpan.textContent = 'API Yükleniyor...';
+                    window.onYouTubeIframeAPIReady = () => {
+                        this._initializeYTPlayer(videoId, statusSpan);
+                    };
+                }
+            } catch (err) {
+                this.notify('YouTube Player başlatılamadı.', 'error');
+                console.error(err);
+            }
+        });
+    },
+
+    _initializeYTPlayer(videoId, statusElement) {
+        AppState.ytState.videoId = videoId;
+
+        AppState.ytState.player = new YT.Player('ytPlayerContainer', {
+            height: '100%',
+            width: '100%',
+            videoId: videoId,
+            playerVars: {
+                'playsinline': 1,
+                'rel': 0,
+                'modestbranding': 1
+            },
+            events: {
+                'onReady': (event) => {
+                    if (statusElement) statusElement.innerHTML = `<span style="color:var(--jade)">✅ Hazır. Yürütülüyor...</span>`;
+                    this.notify('Video hazır. Sesi açıp dinlemeye başlayın.', 'success');
+
+                    // Demo notalarını çiz (Gerçek transkripsiyon backend'den geldiğinde burası dolacak)
+                    this._mockTranscribeAndRender();
+
+                    event.target.playVideo();
+                },
+                'onStateChange': (event) => {
+                    if (event.data == YT.PlayerState.PLAYING) {
+                        AppState.ytState.isPlaying = true;
+                        // Senkronizasyon loop'unu başlat
+                        if (AppState.ytState.syncInterval) clearInterval(AppState.ytState.syncInterval);
+                        AppState.ytState.syncInterval = setInterval(() => {
+                            AppState.ytState.currentTime = AppState.ytState.player.getCurrentTime();
+                            this._syncVexFlowCursor(AppState.ytState.currentTime);
+                        }, 100); // 10 fps cursor update
+                    } else {
+                        AppState.ytState.isPlaying = false;
+                        clearInterval(AppState.ytState.syncInterval);
+                    }
+                }
+            }
+        });
+    },
+
+    _mockTranscribeAndRender() {
+        const statusSpan = document.getElementById('transcriptionStatus');
+        if (statusSpan) statusSpan.textContent = "AI Notaları Çıkarıyor...";
+
+        // Gerçek bir backend olmadığı için demo bir makam (Rast Seyri) basıyoruz.
+        const demoNotes = [
+            { note: 'Sol', duration: 1, timeStart: 0, timeEnd: 1 },
+            { note: 'La', duration: 1, timeStart: 1, timeEnd: 2 },
+            { note: 'Si', duration: 0.5, timeStart: 2, timeEnd: 2.5 },
+            { note: 'Do', duration: 0.5, timeStart: 2.5, timeEnd: 3 },
+            { note: 'Re', duration: 2, timeStart: 3, timeEnd: 5 },
+            { note: 'Do', duration: 0.5, timeStart: 5, timeEnd: 5.5 },
+            { note: 'Si', duration: 0.5, timeStart: 5.5, timeEnd: 6 },
+            { note: 'La', duration: 1, timeStart: 6, timeEnd: 7 },
+            { note: 'Sol', duration: 4, timeStart: 7, timeEnd: 11 }
+        ];
+
+        // Bu notaları VexFlow renderer'a gönder (Zaten var olan fonksiyonu kullanıyoruz)
+        AppState._vexFlowRenderer.renderToStave(demoNotes, 'vexflowContainer');
+        this._currentTranscriptionData = demoNotes; // Senkronizasyon için sakla
+
+        if (statusSpan) statusSpan.innerHTML = `<span style="color:var(--jade)">✨ AI Transkripsiyon Başarılı</span>`;
+    },
+
+    _syncVexFlowCursor(currentTime) {
+        // SVG tabanlı VexFlow konteyneri içinde "şu an çalan notayı" renklendirme VEYA üzerine bir imleç (cursor) çizme mantığı.
+        // VexFlow statik render eder, DOM elementlerine (SVG <g>) .addClass() yaparak ilerliyoruz.
+        if (!this._currentTranscriptionData) return;
+
+        let activeNoteIndex = -1;
+        for (let i = 0; i < this._currentTranscriptionData.length; i++) {
+            const n = this._currentTranscriptionData[i];
+            if (currentTime >= n.timeStart && currentTime <= n.timeEnd) {
+                activeNoteIndex = i;
+                break;
+            }
+        }
+
+        // SVG group bul
+        const container = document.getElementById('vexflowContainer');
+        if (!container) return;
+        const noteGroups = container.querySelectorAll('.vf-stavenote');
+
+        noteGroups.forEach((g, idx) => {
+            if (idx === activeNoteIndex) {
+                g.style.opacity = '1';
+                g.querySelectorAll('path').forEach(p => { p.setAttribute('fill', '#C9A84C'); p.setAttribute('stroke', '#C9A84C'); });
+            } else {
+                g.style.opacity = '0.5';
+                g.querySelectorAll('path').forEach(p => { p.setAttribute('fill', '#000000'); p.setAttribute('stroke', '#000000'); });
+            }
+        });
     },
 
     setupGecki() {
@@ -2321,6 +2833,31 @@ const UI = {
                 <p style="font-size:0.85rem;color:var(--text-muted);text-align:center">Makam tespiti için en az 4 nota çalın...</p>
             `;
         }
+    },
+
+    /* --- GLOBAL LIFECYCLE BINDINGS --- */
+    _lastFloatTunerUpdateTs: 0,
+    updateGlobalFloatingTuner(noteName, cents) {
+        const floatPanel = document.getElementById('floatingTuner');
+        if (!floatPanel || floatPanel.style.display === 'none') return;
+
+        // Performans: Saniyede max 20 kare (50ms)
+        const now = Date.now();
+        if (now - this._lastFloatTunerUpdateTs < 50) return;
+        this._lastFloatTunerUpdateTs = now;
+
+        const noteEl = document.getElementById('floatTunerNote');
+        const centsEl = document.getElementById('floatTunerCents');
+        const ind = document.getElementById('floatTunerInd');
+
+        if (noteEl) noteEl.textContent = noteName;
+        if (centsEl) {
+            centsEl.textContent = cents + ' cent';
+            centsEl.style.color = Math.abs(cents) < 10 ? 'var(--jade)' : 'var(--gold)';
+        }
+        if (ind) {
+            ind.style.left = `calc(50% + ${Math.max(-45, Math.min(45, cents))}%)`;
+        }
     }
 };
 
@@ -2330,5 +2867,9 @@ document.addEventListener('DOMContentLoaded', () => {
     s.textContent = '@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}';
     document.head.appendChild(s);
     UI.init();
+
+    // Setup AI/Video features after DOM
+    AppState.setupAIAnalysis();
+
     console.log('🎵 Ney Mastery initialized!');
 });
