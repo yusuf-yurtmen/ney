@@ -1,0 +1,7 @@
+backend/
+requirements.txt
+ney_transcription_api.py
+*.py
+__pycache__/
+.venv/
+temp_audio/
